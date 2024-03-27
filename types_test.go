@@ -12,5 +12,5 @@ func TestNewAccount(t *testing.T) {
 	// se o erro for nulo, passa o teste
 	assert.Nil(t, err)
 
-	fmt.Printf("%v\n", acc)
+	fmt.Printf("%+v\n", acc)
 }

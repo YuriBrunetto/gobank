@@ -30,7 +30,7 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/login", MakeHTTPHandleFunc(s.handleLogin))
 	router.HandleFunc("/account", MakeHTTPHandleFunc(s.handleAccount))
 	router.HandleFunc("/account/{id}", withJWTAuth(MakeHTTPHandleFunc(s.handleGetAccountByID), s.store))
-	router.HandleFunc("/transfer", MakeHTTPHandleFunc(s.handleTransfer))
+	router.HandleFunc("/transfer", withJWTAuth(MakeHTTPHandleFunc(s.handleTransfer), s.store))
 
 	log.Println("JSON API server running on port", s.listenAddr)
 
@@ -53,7 +53,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if !acc.ValidatePassword(req.Password) {
-		return fmt.Errorf("Access denied! :(")
+		return fmt.Errorf("Access denied!")
 	}
 
 	token, err := createJWT(acc)
@@ -149,11 +149,18 @@ func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
+	if r.Method == "GET" {
+		return fmt.Errorf("Method not allowed %s", r.Method)
+	}
+
 	transferReq := new(TransferRequest)
 	if err := json.NewDecoder(r.Body).Decode(transferReq); err != nil {
 		return err
 	}
-	defer r.Body.Close()
+
+	if err := s.store.CreateTransfer(transferReq.FromAccount, transferReq.ToAccount, transferReq.Amount); err != nil {
+		return err
+	}
 
 	return WriteJSON(w, http.StatusOK, transferReq)
 }
@@ -213,11 +220,6 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 			return
 		}
 
-		if err != nil {
-			WriteJSON(w, http.StatusForbidden, ApiError{Error: "invalid token"})
-			return
-		}
-
 		handlerFunc(w, r)
 	}
 }
@@ -250,9 +252,23 @@ func MakeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 
 func getAccountID(r *http.Request) (int, error) {
 	idStr := mux.Vars(r)["id"]
+
+	if idStr != "" {
+		return parseID(idStr)
+	} else {
+		idFromQuery := r.URL.Query().Get("id")
+		return parseID(idFromQuery)
+	}
+}
+
+func parseID(idStr string) (int, error) {
+	if idStr == "" {
+		return 0, fmt.Errorf("No ID provided")
+	}
+
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		return id, fmt.Errorf("Invalid ID given %s", idStr)
+		return 0, fmt.Errorf("Invalid ID given %s", idStr)
 	}
 
 	return id, nil

@@ -3,17 +3,35 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
 
 type Storage interface {
+	// CreateAccount creates a new account and returns its ID.
 	CreateAccount(*Account) (int, error)
+
+	// DeleteAccount deletes the account with the given ID.
 	DeleteAccount(int) error
+
+	// UpdateAccount updates the account information.
 	UpdateAccount(*Account) error
+
+	// GetAccounts returns a list of all accounts.
 	GetAccounts() ([]*Account, error)
+
+	// GetAccountByID retrieves an account by its ID.
 	GetAccountByID(int) (*Account, error)
+
+	// GetAccountByNumber retrieves an account by its number.
 	GetAccountByNumber(int) (*Account, error)
+
+	// CreateTransfer creates a transfer from one account to another.
+	// fromAccount is the number of the account transferring money.
+	// toAccount is the number of the account receiving money.
+	// amount is the amount of money to transfer.
+	CreateTransfer(fromAccount, toAccount, amount int) error
 }
 
 type PostgresStore struct {
@@ -38,11 +56,21 @@ func NewPostgresStore() (*PostgresStore, error) {
 }
 
 func (s *PostgresStore) Init() error {
-	return s.CreateAccountTable()
+	err := s.CreateAccountTable()
+	if err != nil {
+		return err
+	}
+
+	err = s.CreateTransferTable()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *PostgresStore) CreateAccountTable() error {
-	query := `create table if not exists account (
+	query := `CREATE TABLE IF NOT EXISTS account (
 		id serial primary key,
 		first_name varchar(100),
 		last_name varchar(100),
@@ -51,6 +79,20 @@ func (s *PostgresStore) CreateAccountTable() error {
 		balance serial,
 		created_at timestamp
 	)`
+
+	_, err := s.db.Exec(query)
+
+	return err
+}
+
+func (s *PostgresStore) CreateTransferTable() error {
+	query := `CREATE TABLE IF NOT EXISTS transfer (
+    id serial primary key,
+    from_account serial,
+    to_account serial,
+    amount serial,
+    created_at timestamp
+  )`
 
 	_, err := s.db.Exec(query)
 
@@ -114,6 +156,25 @@ func (s *PostgresStore) GetAccountByID(id int) (*Account, error) {
 	}
 
 	return nil, fmt.Errorf("Account with ID %d not found", id)
+}
+
+func (s *PostgresStore) CreateTransfer(fromAccount, toAccount, amount int) error {
+	query := `INSERT INTO transfer
+  (from_account, to_account, amount, created_at)
+  VALUES ($1, $2, $3, $4)`
+
+	_, err := s.db.Query(
+		query,
+		fromAccount,
+		toAccount,
+		amount,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {
