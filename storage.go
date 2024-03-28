@@ -174,6 +174,25 @@ func (s *PostgresStore) CreateTransfer(fromAccount, toAccount, amount int) error
 		return err
 	}
 
+	// subtract amount from the sender
+	querySubtractAmount := `UPDATE account
+  SET balance = balance - $1
+  WHERE number = $2
+  `
+	_, err = s.db.Query(querySubtractAmount, amount, fromAccount)
+	if err != nil {
+		return err
+	}
+
+	// add amount to the receiver
+	queryAddAmount := `UPDATE account
+  SET balance = balance + $1
+  WHERE number = $2`
+	_, err = s.db.Query(queryAddAmount, amount, toAccount)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -4,10 +4,12 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginResponse struct {
+	ID     int    `json:"id"`
 	Number int64  `json:"number"`
 	Token  string `json:"token"`
 }
@@ -15,6 +17,13 @@ type LoginResponse struct {
 type LoginRequest struct {
 	Number   int64  `json:"number"`
 	Password string `json:"password"`
+}
+
+type LoginClaims struct {
+	UserID        int   `json:"userID"`
+	ExpiresAt     int   `json:"expiresAt"`
+	AccountNumber int64 `json:"accountNumber"`
+	jwt.StandardClaims
 }
 
 type TransferRequest struct {

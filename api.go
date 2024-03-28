@@ -62,6 +62,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	resp := LoginResponse{
+		ID:     acc.ID,
 		Token:  token,
 		Number: acc.Number,
 	}
@@ -158,6 +159,22 @@ func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
+	// check if the receiverAccount number exists
+	_, err := s.store.GetAccountByNumber(transferReq.ToAccount)
+	if err != nil {
+		return err
+	}
+
+	// check if user has the necessary amount balance
+	senderAcc, err := s.store.GetAccountByNumber(transferReq.FromAccount)
+	if err != nil {
+		return err
+	}
+
+	if senderAcc.Balance < int64(transferReq.Amount) {
+		return WriteJSON(w, http.StatusForbidden, ApiError{Error: "Not enough money to do the transfer."})
+	}
+
 	if err := s.store.CreateTransfer(transferReq.FromAccount, transferReq.ToAccount, transferReq.Amount); err != nil {
 		return err
 	}
@@ -173,9 +190,10 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 }
 
 func createJWT(account *Account) (string, error) {
-	claims := &jwt.MapClaims{
-		"expiresAt":     15000,
-		"accountNumber": account.Number,
+	claims := &LoginClaims{
+		UserID:        account.ID,
+		ExpiresAt:     15000,
+		AccountNumber: account.Number,
 	}
 
 	secret := os.Getenv("JWT_SECRET")
@@ -203,19 +221,20 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 			return
 		}
 
-		userID, err := getAccountID(r)
-		if err != nil {
+		claims, ok := token.Claims.(*LoginClaims)
+		if !ok {
 			permissionDenied(w)
 			return
 		}
+
+		userID := claims.UserID
 		account, err := s.GetAccountByID(userID)
 		if err != nil {
 			permissionDenied(w)
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		if account.Number != int64(claims["accountNumber"].(float64)) {
+		if account.Number != claims.AccountNumber {
 			permissionDenied(w)
 			return
 		}
@@ -227,11 +246,7 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 func validateJWT(tokenString string) (*jwt.Token, error) {
 	secret := os.Getenv("JWT_SECRET")
 
-	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-
+	return jwt.ParseWithClaims(tokenString, &LoginClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
 }
