@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewAccount(t *testing.T) {
-	acc, err := NewAccount("yuro", "brunatko", "hunter")
+	acc, err := NewAccount("a", "brunatko", "hunter")
 	// se o erro for nulo, passa o teste
 	assert.Nil(t, err)
 

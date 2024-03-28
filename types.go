@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -52,7 +53,28 @@ func (a *Account) ValidatePassword(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(a.EncryptedPassword), []byte(password)) == nil
 }
 
+func ValidateStrLength(value, field string, length int) error {
+	if len(value) < length {
+		return fmt.Errorf("%s must be greater than %v characters", field, length)
+	}
+
+	return nil
+}
+
 func NewAccount(firstName, lastName, password string) (*Account, error) {
+	err := ValidateStrLength(firstName, "First Name", 3)
+	if err != nil {
+		return nil, err
+	}
+	err = ValidateStrLength(lastName, "Last Name", 3)
+	if err != nil {
+		return nil, err
+	}
+	err = ValidateStrLength(password, "Password", 8)
+	if err != nil {
+		return nil, err
+	}
+
 	encpw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err

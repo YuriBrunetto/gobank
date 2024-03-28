@@ -72,7 +72,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 
 func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
-		return s.handleGetAccount(w, r)
+		return s.handleGetAccount(w)
 	}
 	if r.Method == "POST" {
 		return s.handleCreateAccount(w, r)
@@ -81,7 +81,7 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("Method not allowed %s", r.Method)
 }
 
-func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleGetAccount(w http.ResponseWriter) error {
 	accounts, err := s.store.GetAccounts()
 	if err != nil {
 		return err
